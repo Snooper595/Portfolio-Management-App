@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 
-// Free API key for demo - Get your own at https://www.alphavantage.co/support/#api-key
-// This demo key has limited calls. For production, use your own key.
-const API_KEY = 'demo';
+// Get API key from environment variable or fall back to demo
+const API_KEY = process.env.ALPHA_VANTAGE_API_KEY || 'demo';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

@@ -36,6 +36,8 @@ export default function Home() {
     purchasePrice: '',
   });
   const [showAddPosition, setShowAddPosition] = useState(false);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [priceError, setPriceError] = useState('');
 
   // Load funds from localStorage on mount
   useEffect(() => {
@@ -95,6 +97,27 @@ export default function Home() {
     }
   };
 
+  const fetchPriceForNewPosition = async (symbol: string) => {
+    if (!symbol || symbol.length < 1) {
+      setPriceError('');
+      return;
+    }
+
+    setFetchingPrice(true);
+    setPriceError('');
+    
+    const price = await fetchStockPrice(symbol);
+    
+    if (price) {
+      setNewPosition({ ...newPosition, symbol: symbol.toUpperCase(), purchasePrice: price.toFixed(2) });
+      setPriceError('');
+    } else {
+      setPriceError('Could not fetch price. Please enter manually or check symbol.');
+    }
+    
+    setFetchingPrice(false);
+  };
+
   const refreshPrices = async (fundId: string) => {
     setLoading({ ...loading, [fundId]: true });
     const fund = funds.find((f) => f.id === fundId);
@@ -121,11 +144,14 @@ export default function Home() {
 
   const addPosition = async () => {
     const { fundId, symbol, shares, purchasePrice } = newPosition;
-    if (!fundId || !symbol || !shares || !purchasePrice) return;
+    if (!fundId || !symbol || !shares || !purchasePrice) {
+      alert('Please fill in all fields');
+      return;
+    }
 
     const currentPrice = await fetchStockPrice(symbol.toUpperCase());
     if (!currentPrice) {
-      alert('Could not fetch price for this symbol. Please check the symbol and try again.');
+      alert('Could not fetch current price for this symbol. Please check the symbol and try again.');
       return;
     }
 
@@ -147,6 +173,7 @@ export default function Home() {
     );
 
     setNewPosition({ fundId: '', symbol: '', shares: '', purchasePrice: '' });
+    setPriceError('');
     setShowAddPosition(false);
   };
 
@@ -307,7 +334,7 @@ export default function Home() {
         {showAddPosition && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
             <h3 className="text-xl font-bold text-slate-900 mb-4">Add New Position</h3>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <select
                 value={newPosition.fundId}
                 onChange={(e) =>
@@ -322,15 +349,33 @@ export default function Home() {
                   </option>
                 ))}
               </select>
-              <input
-                type="text"
-                placeholder="Symbol (e.g., TSLA)"
-                value={newPosition.symbol}
-                onChange={(e) =>
-                  setNewPosition({ ...newPosition, symbol: e.target.value.toUpperCase() })
-                }
-                className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Symbol (e.g., TSLA)"
+                  value={newPosition.symbol}
+                  onChange={(e) =>
+                    setNewPosition({ ...newPosition, symbol: e.target.value.toUpperCase() })
+                  }
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && newPosition.symbol) {
+                      fetchPriceForNewPosition(newPosition.symbol);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  onClick={() => fetchPriceForNewPosition(newPosition.symbol)}
+                  disabled={!newPosition.symbol || fetchingPrice}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                >
+                  {fetchingPrice ? (
+                    <RefreshCw size={16} className="animate-spin" />
+                  ) : (
+                    'Get Price'
+                  )}
+                </button>
+              </div>
               <input
                 type="number"
                 placeholder="Shares"
@@ -342,6 +387,7 @@ export default function Home() {
               />
               <input
                 type="number"
+                step="0.01"
                 placeholder="Purchase Price"
                 value={newPosition.purchasePrice}
                 onChange={(e) =>
@@ -351,10 +397,19 @@ export default function Home() {
               />
               <button
                 onClick={addPosition}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                disabled={!newPosition.fundId || !newPosition.symbol || !newPosition.shares || !newPosition.purchasePrice}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Add
               </button>
+            </div>
+            {priceError && (
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">
+                {priceError}
+              </div>
+            )}
+            <div className="mt-3 text-sm text-slate-600">
+              💡 Tip: Enter a symbol and click "Get Price" (or press Enter) to auto-fill the current market price. You can edit it if needed.
             </div>
           </div>
         )}
@@ -495,26 +550,30 @@ export default function Home() {
             </li>
             <li className="flex items-start gap-2">
               <span className="font-bold">2.</span>
-              <span>Use US stock symbols (e.g., TSLA for Tesla, AAPL for Apple, ENPH for Enphase Energy)</span>
+              <span>Enter a US stock symbol (e.g., TSLA, AAPL, ENPH) and click "Get Price" to auto-fill the current market price</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="font-bold">3.</span>
-              <span>Click "Refresh" on each fund to update prices with real-time market data</span>
+              <span>You can edit the purchase price if you bought at a different price</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="font-bold">4.</span>
-              <span>Export your portfolio data to CSV for reports and analysis</span>
+              <span>Click "Refresh" on each fund to update prices with real-time market data</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="font-bold">5.</span>
+              <span>Export your portfolio data to CSV for reports and analysis</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-bold">6.</span>
               <span>All data is saved locally in your browser (no account needed)</span>
             </li>
           </ul>
           <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm text-yellow-900">
-            <strong>Note:</strong> This app uses a demo API key with limited calls. For production use, get a free API key at 
-            <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener noreferrer" className="underline ml-1">
+            <strong>API Setup:</strong> For best performance, add your free API key in Vercel Settings → Environment Variables. 
+            Get a free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener noreferrer" className="underline ml-1">
               Alpha Vantage
-            </a> and update it in the API route.
+            </a> (500 calls/day free).
           </div>
         </div>
       </div>
