@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 // Get your free API key at https://financialmodelingprep.com/developer/docs/
 // Free tier: 250 requests per day
-const FMP_API_KEY = process.env.FMP_API_KEY || 'demo'; // Set in environment variables
+const FMP_API_KEY = process.env.FMP_API_KEY || 'demo';
 
 // Mock ESG data for common sustainable stocks (used as fallback)
 const MOCK_ESG_DATA: Record<string, {
@@ -111,19 +111,26 @@ export async function GET(request: Request) {
 
   const upperSymbol = symbol.toUpperCase();
 
-  // Try to fetch from Financial Modeling Prep API
-  if (FMP_API_KEY !== 'demo') {
+  // Log API key status (without exposing the actual key)
+  console.log('ESG API - API Key configured:', FMP_API_KEY !== 'demo');
+  console.log('ESG API - Fetching data for symbol:', upperSymbol);
+
+  // Try to fetch from Financial Modeling Prep API if we have a real key
+  if (FMP_API_KEY && FMP_API_KEY !== 'demo') {
     try {
-      const response = await fetch(
-        `https://financialmodelingprep.com/api/v4/esg-environmental-social-governance-data?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`
-      );
+      const apiUrl = `https://financialmodelingprep.com/api/v4/esg-environmental-social-governance-data?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
+      console.log('ESG API - Calling FMP API...');
+      
+      const response = await fetch(apiUrl);
+      console.log('ESG API - FMP Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
+        console.log('ESG API - FMP Data received:', data?.length > 0 ? 'Yes' : 'No data');
         
         if (data && data.length > 0) {
           const esgData = data[0];
-          return NextResponse.json({
+          const result = {
             symbol: upperSymbol,
             esgScore: Math.round(
               (esgData.environmentalScore + esgData.socialScore + esgData.governanceScore) / 3
@@ -135,17 +142,26 @@ export async function GET(request: Request) {
               (esgData.environmentalScore + esgData.socialScore + esgData.governanceScore) / 3
             ),
             source: 'Financial Modeling Prep',
-          });
+          };
+          console.log('ESG API - Returning FMP data:', result);
+          return NextResponse.json(result);
+        } else {
+          console.log('ESG API - FMP returned empty data, using fallback');
         }
+      } else {
+        const errorText = await response.text();
+        console.log('ESG API - FMP Error response:', errorText);
       }
     } catch (error) {
-      console.error('Error fetching ESG data from FMP:', error);
-      // Fall through to mock data
+      console.error('ESG API - Error fetching from FMP:', error);
     }
+  } else {
+    console.log('ESG API - No valid API key, using mock data');
   }
 
   // Return mock data if available
   if (MOCK_ESG_DATA[upperSymbol]) {
+    console.log('ESG API - Returning mock data for', upperSymbol);
     return NextResponse.json({
       symbol: upperSymbol,
       ...MOCK_ESG_DATA[upperSymbol],
@@ -155,6 +171,7 @@ export async function GET(request: Request) {
   }
 
   // Generate random but reasonable ESG scores for unknown symbols
+  console.log('ESG API - Generating random data for', upperSymbol);
   const envScore = 50 + Math.floor(Math.random() * 40);
   const socScore = 50 + Math.floor(Math.random() * 40);
   const govScore = 50 + Math.floor(Math.random() * 40);

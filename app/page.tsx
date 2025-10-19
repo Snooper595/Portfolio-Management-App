@@ -26,6 +26,8 @@ interface Fund {
   cash: number;
 }
 
+const STORAGE_KEY = 'portfolio-tracker-funds';
+
 export default function Home() {
   const defaultFunds: Fund[] = [
     { id: '1', name: 'Aggressive Growth', type: 'aggressive', initialValue: 100000, positions: [], cash: 100000 },
@@ -38,6 +40,28 @@ export default function Home() {
   const [newPosition, setNewPosition] = useState({ symbol: '', shares: '', price: '' });
   const [loading, setLoading] = useState<string | null>(null);
   const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    setIsClient(true);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setFunds(parsed);
+      } catch (error) {
+        console.error('Error loading saved data:', error);
+      }
+    }
+  }, []);
+
+  // Save to localStorage whenever funds change
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(funds));
+    }
+  }, [funds, isClient]);
 
   const fetchCurrentPrice = async () => {
     if (!newPosition.symbol) {
@@ -102,6 +126,7 @@ export default function Home() {
         const esgResponse = await fetch(`/api/esg-rating?symbol=${newPosition.symbol}`);
         if (esgResponse.ok) {
           esgData = await esgResponse.json();
+          console.log('ESG API Response:', esgData); // Debug logging
         }
       } catch (error) {
         console.error('Error fetching ESG data:', error);
@@ -217,6 +242,13 @@ export default function Home() {
       console.error('Error refreshing prices:', error);
     } finally {
       setLoading(null);
+    }
+  };
+
+  const resetPortfolio = () => {
+    if (confirm('Are you sure you want to reset the entire portfolio? This will delete all positions and cannot be undone.')) {
+      setFunds(defaultFunds);
+      localStorage.removeItem(STORAGE_KEY);
     }
   };
 
@@ -337,11 +369,21 @@ export default function Home() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2 flex items-center gap-3">
-            <Leaf className="text-green-600" size={40} />
-            Sustainable Investment Portfolio Tracker
-          </h1>
-          <p className="text-slate-600">Track your funds with real-time market data and ESG ratings</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900 mb-2 flex items-center gap-3">
+                <Leaf className="text-green-600" size={40} />
+                Sustainable Investment Portfolio Tracker
+              </h1>
+              <p className="text-slate-600">Track your funds with real-time market data and ESG ratings</p>
+            </div>
+            <button
+              onClick={resetPortfolio}
+              className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+            >
+              Reset Portfolio
+            </button>
+          </div>
         </div>
 
         {/* Overall Summary */}
@@ -519,8 +561,8 @@ export default function Home() {
                                     <div className="font-medium">{position.governanceScore}</div>
                                   </div>
                                 </div>
-                                {position.esgSource && (
-                                  <p className="text-xs text-slate-500 mt-1 italic">{position.esgSource}</p>
+                                {position.esgSource && position.esgSource !== 'Financial Modeling Prep' && (
+                                  <p className="text-xs text-amber-600 mt-1 italic">{position.esgSource}</p>
                                 )}
                               </div>
                             )}
