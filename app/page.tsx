@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, Download, Plus, X, RefreshCw, Leaf } from 'lucide-react';
+import { TrendingUp, TrendingDown, Download, Plus, X, RefreshCw, Leaf, DollarSign } from 'lucide-react';
 
 interface Position {
   id: string;
@@ -37,6 +37,34 @@ export default function Home() {
   const [showAddPosition, setShowAddPosition] = useState<string | null>(null);
   const [newPosition, setNewPosition] = useState({ symbol: '', shares: '', price: '' });
   const [loading, setLoading] = useState<string | null>(null);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+
+  const fetchCurrentPrice = async () => {
+    if (!newPosition.symbol) {
+      alert('Please enter a symbol first');
+      return;
+    }
+
+    setFetchingPrice(true);
+    try {
+      const response = await fetch(`/api/stock-price?symbol=${newPosition.symbol}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.price) {
+          setNewPosition({ ...newPosition, price: data.price.toFixed(2) });
+        } else {
+          alert('Could not fetch price for this symbol');
+        }
+      } else {
+        alert('Error fetching price. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error fetching price:', error);
+      alert('Error fetching price. Please enter manually.');
+    } finally {
+      setFetchingPrice(false);
+    }
+  };
 
   const addPosition = async (fundId: string) => {
     if (!newPosition.symbol || !newPosition.shares || !newPosition.price) return;
@@ -514,13 +542,27 @@ export default function Home() {
                         onChange={(e) => setNewPosition({ ...newPosition, shares: e.target.value })}
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                       />
-                      <input
-                        type="number"
-                        placeholder="Purchase Price"
-                        value={newPosition.price}
-                        onChange={(e) => setNewPosition({ ...newPosition, price: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          placeholder="Purchase Price"
+                          value={newPosition.price}
+                          onChange={(e) => setNewPosition({ ...newPosition, price: e.target.value })}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                        />
+                        <button
+                          onClick={fetchCurrentPrice}
+                          disabled={fetchingPrice || !newPosition.symbol}
+                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                          title="Get current market price"
+                        >
+                          {fetchingPrice ? (
+                            <RefreshCw size={16} className="animate-spin" />
+                          ) : (
+                            <DollarSign size={16} />
+                          )}
+                        </button>
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => addPosition(fund.id)}
