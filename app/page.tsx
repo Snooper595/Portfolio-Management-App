@@ -52,15 +52,20 @@ export default function Home() {
         const data = await response.json();
         if (data.price) {
           setNewPosition({ ...newPosition, price: data.price.toFixed(2) });
+          // Show a subtle note if using demo data
+          if (data.source && data.source !== 'Alpha Vantage') {
+            console.log(`Using ${data.source} for ${newPosition.symbol}: $${data.price.toFixed(2)}`);
+          }
         } else {
-          alert('Could not fetch price for this symbol');
+          alert('Could not fetch price for this symbol. Please enter manually.');
         }
       } else {
-        alert('Error fetching price. Please try again.');
+        const errorData = await response.json();
+        alert(errorData.error || 'Error fetching price. Please enter manually.');
       }
     } catch (error) {
       console.error('Error fetching price:', error);
-      alert('Error fetching price. Please enter manually.');
+      alert('Network error. Please enter price manually.');
     } finally {
       setFetchingPrice(false);
     }
