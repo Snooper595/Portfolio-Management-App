@@ -47,14 +47,33 @@ export default function Home() {
     const price = parseFloat(newPosition.price);
     const totalCost = shares * price;
 
-    // Fetch current price
+    // Fetch current price and ESG data
     try {
-      const priceResponse = await fetch(`/api/stock-price?symbol=${newPosition.symbol}`);
-      const priceData = await priceResponse.json();
+      let currentPrice = price; // Default to purchase price
+      let esgData: any = null;
 
-      // Fetch ESG rating
-      const esgResponse = await fetch(`/api/esg-rating?symbol=${newPosition.symbol}`);
-      const esgData = await esgResponse.json();
+      // Try to fetch current price
+      try {
+        const priceResponse = await fetch(`/api/stock-price?symbol=${newPosition.symbol}`);
+        if (priceResponse.ok) {
+          const priceDataResult = await priceResponse.json();
+          currentPrice = priceDataResult.price || price;
+        }
+      } catch (error) {
+        console.error('Error fetching stock price:', error);
+        // Continue with purchase price
+      }
+
+      // Try to fetch ESG rating
+      try {
+        const esgResponse = await fetch(`/api/esg-rating?symbol=${newPosition.symbol}`);
+        if (esgResponse.ok) {
+          esgData = await esgResponse.json();
+        }
+      } catch (error) {
+        console.error('Error fetching ESG data:', error);
+        // Continue without ESG data
+      }
 
       setFunds(
         funds.map((fund) => {
@@ -68,13 +87,15 @@ export default function Home() {
                   symbol: newPosition.symbol.toUpperCase(),
                   shares,
                   purchasePrice: price,
-                  currentPrice: priceData.price,
-                  esgScore: esgData.esgScore,
-                  esgRating: esgData.esgRating,
-                  environmentalScore: esgData.environmentalScore,
-                  socialScore: esgData.socialScore,
-                  governanceScore: esgData.governanceScore,
-                  esgSource: esgData.source,
+                  currentPrice: currentPrice,
+                  ...(esgData && {
+                    esgScore: esgData.esgScore,
+                    esgRating: esgData.esgRating,
+                    environmentalScore: esgData.environmentalScore,
+                    socialScore: esgData.socialScore,
+                    governanceScore: esgData.governanceScore,
+                    esgSource: esgData.source,
+                  }),
                 },
               ],
               cash: fund.cash - totalCost,
@@ -182,6 +203,12 @@ export default function Home() {
     return 'text-orange-700';
   };
 
+  const getFundHeaderClass = (type: 'aggressive' | 'medium' | 'conservative'): string => {
+    if (type === 'aggressive') return 'bg-red-500';
+    if (type === 'medium') return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
   const calculateFundMetrics = (fund: Fund) => {
     const totalCost = fund.positions.reduce((sum, pos) => sum + pos.shares * pos.purchasePrice, 0);
     const totalCurrent = fund.positions.reduce(
@@ -195,7 +222,7 @@ export default function Home() {
     // Calculate weighted average ESG score
     const positionsWithESG = fund.positions.filter((p) => p.esgScore);
     const weightedESGScore =
-      positionsWithESG.length > 0
+      positionsWithESG.length > 0 && totalCurrent > 0
         ? positionsWithESG.reduce((sum, pos) => {
             const value = pos.shares * (pos.currentPrice || pos.purchasePrice);
             return sum + (pos.esgScore || 0) * value;
@@ -352,12 +379,10 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {funds.map((fund) => {
             const metrics = calculateFundMetrics(fund);
-            const fundColor =
-              fund.type === 'aggressive' ? 'red' : fund.type === 'medium' ? 'yellow' : 'green';
 
             return (
               <div key={fund.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className={`bg-${fundColor}-500 p-4`}>
+                <div className={`${getFundHeaderClass(fund.type)} p-4`}>
                   <h3 className="text-xl font-bold text-white mb-1">{fund.name}</h3>
                   <p className="text-sm text-white opacity-90">
                     ${metrics.totalValue.toLocaleString()} | Cash: ${fund.cash.toLocaleString()}
